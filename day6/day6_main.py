@@ -1,6 +1,6 @@
-from typing import List, Tuple
+from bisect import bisect_left, insort_left
+from typing import List, Tuple, Dict
 import time
-from collections import Counter
 
 INPUT_PATH = "inp.txt"
 
@@ -16,6 +16,101 @@ BLOCKED_SPACE = "#"
 START_UP = "^"
 START_LEFT = ">"
 START_RIGHT = "<"
+
+class PositionMap:
+    def __init__(self, blocked: List[Tuple[int]]) -> None:
+        col_map, row_map = self._get_maps(blocked)
+        self.col_map: Dict[int, List[int]] = col_map
+        self.row_map: Dict[int, List[int]] = row_map
+
+    def jump_to_point(self, pos: Tuple[int, int], bearing: int) -> int:
+        new_pos = None
+        if bearing == NORTH:
+            potential_blks = self.col_map.get(pos[1])
+            if potential_blks is not None and min(potential_blks) < pos[0]:
+                new_pos = potential_blks[bisect_left(potential_blks, pos[0]) - 1] + 1
+            return new_pos
+        if bearing == EAST:
+            potential_blks = self.row_map.get(pos[0])
+            if potential_blks is not None and max(potential_blks) > pos[1]:
+                new_pos = potential_blks[bisect_left(potential_blks, pos[1])] - 1
+            return new_pos
+        if bearing == SOUTH:
+            potential_blks = self.col_map.get(pos[1])
+            if potential_blks is not None and max(potential_blks) > pos[0]:
+                new_pos = potential_blks[bisect_left(potential_blks, pos[0])] - 1
+            return new_pos
+        if bearing == WEST:
+            potential_blks = self.row_map.get(pos[0])
+            if potential_blks is not None and min(potential_blks) < pos[1]:
+                new_pos = potential_blks[bisect_left(potential_blks, pos[1]) - 1] + 1
+            return new_pos
+        raise ValueError("Invalid bearing!!")
+
+    def jump_to_coord(self, pos: Tuple[int, int], bearing: int) -> Tuple[int, int]:
+        new_pos = None
+        if bearing == NORTH:
+            potential_blks = self.col_map.get(pos[1])
+            if potential_blks is not None and min(potential_blks) < pos[0]:
+                new_pos = (potential_blks[bisect_left(potential_blks, pos[0]) - 1] + 1, pos[1])
+            return new_pos
+        if bearing == EAST:
+            potential_blks = self.row_map.get(pos[0])
+            if potential_blks is not None and max(potential_blks) > pos[1]:
+                new_pos = (pos[0], potential_blks[bisect_left(potential_blks, pos[1])] - 1)
+            return new_pos
+        if bearing == SOUTH:
+            potential_blks = self.col_map.get(pos[1])
+            if potential_blks is not None and max(potential_blks) > pos[0]:
+                new_pos = (potential_blks[bisect_left(potential_blks, pos[0])] - 1, pos[1])
+            return new_pos
+        if bearing == WEST:
+            potential_blks = self.row_map.get(pos[0])
+            if potential_blks is not None and min(potential_blks) < pos[1]:
+                new_pos = (pos[0], potential_blks[bisect_left(potential_blks, pos[1]) - 1] + 1)
+            return new_pos
+        raise ValueError("Invalid bearing!!")
+
+    def add_block(self, row: int, col: int) -> None:
+        if row not in self.row_map:
+            self.row_map[row] = [col]
+        else:
+            insort_left(self.row_map[row], col)
+        if col not in self.col_map:
+            self.col_map[col] = [row]
+        else:
+            insort_left(self.col_map[col], row)
+
+    def remove_block(self, row: int, col: int) -> None:
+        rval = self.row_map.get(row)
+        cval = self.col_map.get(col)
+        if rval is not None:
+            if len(rval) == 1:
+                self.row_map.pop(row)
+            else:
+                self.row_map[row].pop(bisect_left(rval, col))
+        if cval is not None:
+            if len(cval) == 1:
+                self.col_map.pop(col)
+            else:
+                self.col_map[col].pop(bisect_left(cval, row))
+                #sdfgsd
+
+    def _get_maps(
+        self,
+        pos: List[Tuple[int]]
+    ) -> Tuple[Dict[int, List[int]], Dict[int, List[int]]]:
+        col_map: Dict[int, List[int]] = {}
+        row_map: Dict[int, List[int]] = {}
+        for row, col in pos:
+            if col not in col_map:
+                col_map[col] = []
+            if row not in row_map:
+                row_map[row] = []
+            col_map[col].append(row)
+            row_map[row].append(col)
+        return col_map, row_map
+            
 
 def read_input(inp_path: str) -> List[str]:
     """Read the input data.
@@ -38,66 +133,6 @@ def read_input(inp_path: str) -> List[str]:
                 continue
             data.append(line.strip())
     return data
-
-def turn_right(bearing: int) -> int:
-    """Retrieve direction after turning right.
-    
-    Parameters
-    ----------
-    curr_direction : int
-        Current direction ID.
-    
-    Returns
-    -------
-    int
-        Direction ID after turning right.
-    
-    """
-    if bearing == NORTH:
-        return EAST
-    if bearing == EAST:
-        return SOUTH
-    if bearing == SOUTH:
-        return WEST
-    if bearing == WEST:
-        return NORTH
-    
-def move(
-    pos: Tuple[int, int],
-    bearing: int,
-    blocked: List[Tuple[int, int]]
-) -> Tuple[Tuple[int, int], int]:
-    """Retrieve position after moving once.
-    
-    Parameters
-    ----------
-    pos : Tuple[int, int]
-        Current position.
-    direction : int
-        Current direction
-    blocked : List[Tuple[int, int]]
-        List of positions that cannot be occupied.
-
-    Returns
-    -------
-    Tuple[int, int]
-        New position after moving once.
-    int
-        Direction ID after moving once.
-
-    """
-    move_valid = False
-    while not move_valid:
-        move_valid = True
-        step = DIR_MAP[bearing]
-        # print(step)
-        new_pos = (pos[0] + step[0], pos[1] + step[1])
-        # print(new_pos)
-        if new_pos in blocked:
-            move_valid = False
-            bearing = turn_right(bearing)
-
-    return new_pos, bearing
 
 def parse_map(room_map: List[str]) -> Tuple[Tuple[int, int], int, List[Tuple[int, int]]]:
     """Parse room map.
@@ -141,28 +176,42 @@ def parse_map(room_map: List[str]) -> Tuple[Tuple[int, int], int, List[Tuple[int
                 bearing = SOUTH
     return pos, bearing, blocked
 
-def in_bounds(pos: Tuple[int, int], ylims: Tuple[int, int], xlims: Tuple[int, int]) -> bool:
-    """Check if current position is in bounds.
-    
-    Parameters
-    ----------
-    pos : Tuple[int, int]
-        Current position.
-    ylims : Tuple[int, int]
-        Minimum/maximum Y-values.
-    xlims : Tuple[int, int]
-        Minimum/maximum X-values.
-    
-    Returns
-    -------
-    bool
-        `True` if position is in bounds.
-        `False` if position is out of bounds.
+def creates_loop(
+    start_pos: Tuple[int, int],
+    pmap: PositionMap,
+    blk: Tuple[int, int],
+    bearing: int
+) -> bool:
+    pmap.add_block(blk[0], blk[1])
+    slow_ptr = pmap.jump_to_coord(start_pos, bearing)
+    if slow_ptr is None:
+        pmap.remove_block(blk[0], blk[1])
+        return False
+    slow_ptr_bearing = (bearing + 1)%4
+    fast_ptr = pmap.jump_to_coord(slow_ptr, slow_ptr_bearing)
+    if fast_ptr is None:
+        pmap.remove_block(blk[0], blk[1])
+        return False
+    fast_ptr_bearing = (slow_ptr_bearing + 1)%4
 
-    """
-    if ylims[0] <= pos[0] < ylims[1] and xlims[0] <= pos[1] < xlims[1]:
-        return True
-    return False
+    is_loop = False
+    while True:
+        slow_ptr = pmap.jump_to_coord(slow_ptr, slow_ptr_bearing)
+        slow_ptr_bearing = (slow_ptr_bearing + 1)%4
+
+        fast_ptr = pmap.jump_to_coord(fast_ptr, fast_ptr_bearing)
+        if fast_ptr is None:
+            break
+        fast_ptr_bearing = (fast_ptr_bearing + 1)%4
+        fast_ptr = pmap.jump_to_coord(fast_ptr, fast_ptr_bearing)
+        if fast_ptr is None:
+            break
+        fast_ptr_bearing = (fast_ptr_bearing + 1)%4
+        if fast_ptr == slow_ptr and fast_ptr_bearing == slow_ptr_bearing:
+            is_loop = True
+            break
+    pmap.remove_block(blk[0], blk[1])
+    return is_loop
 
 def count_distinct_positions(room_map: List[str]) -> int:
     """Count the number of distinct positions visited.
@@ -179,12 +228,28 @@ def count_distinct_positions(room_map: List[str]) -> int:
     
     """
     occupied = set()
-    ylims = (0, len(room_map))
-    xlims = (0, len(room_map[0]))
+    oob_ind = [0, len(room_map[0]) - 1, len(room_map) - 1, 0]
+    shift_mods = [-1, 1, 1, -1]
+    shift_idx = [0, 1, 0, 1]
     pos, bearing, blocked = parse_map(room_map)
-    while in_bounds(pos, ylims, xlims):
-        occupied.add(pos)
-        pos, bearing = move(pos, bearing, blocked)
+    pmap = PositionMap(blocked)
+    occupied.add(pos)
+    in_bounds = True
+    while in_bounds:
+        new_pos = pmap.jump_to_point(pos, bearing)
+        if new_pos is None:
+            in_bounds = False
+            new_pos = oob_ind[bearing]
+        nsteps = abs(pos[shift_idx[bearing]] - new_pos)
+        sft_mod = shift_mods[bearing]
+
+        for sft in range(nsteps):
+            if bearing in [NORTH, SOUTH]:
+                occupied.add((pos[0] + sft_mod*(sft + 1), pos[1]))
+            else:
+                occupied.add((pos[0], pos[1] + sft_mod*(sft + 1)))
+        pos = (new_pos, pos[1]) if bearing in [NORTH, SOUTH] else (pos[0], new_pos)
+        bearing = (bearing + 1)%4
     return len(occupied)
 
 def count_distinct_loop_opportunities(room_map: List[str]) -> int:
@@ -202,29 +267,38 @@ def count_distinct_loop_opportunities(room_map: List[str]) -> int:
         can be forced.
     
     """
-    loopable = set()
-    ylims = (0, len(room_map))
-    xlims = (0, len(room_map[0]))
+    loopable = 0
+    occupied = set()
+    oob_ind = [0, len(room_map[0]) - 1, len(room_map) - 1, 0]
+    shift_mods = [-1, 1, 1, -1]
+    shift_idx = [0, 1, 0, 1]
     pos, bearing, blocked = parse_map(room_map)
-    path = []
-    while in_bounds(pos, ylims, xlims):
-        path.append(pos)
-        pos, bearing = move(pos, bearing, blocked)
-    cntr = Counter(path)
-    num_crosses = 0
-    for pos, count in cntr.most_common():
-        if count < 2:
-            break
-        idx = path.index(pos) + 1
-        first_bearing = (path[idx][0] - pos[0], path[idx][1] - pos[1])
-        idx = path.index(pos, idx) + 1
-        second_bearing = (path[idx][0] - pos[0], path[idx][1] - pos[1])
-        if turn_right(DIR_MAP.index(second_bearing)) == DIR_MAP.index(first_bearing):
-            loop_pos = (pos[0] + second_bearing[0], pos[1] + second_bearing[1])
-            if in_bounds(loop_pos, ylims, xlims):
-                loopable.add(loop_pos)
-    print(loopable)
-    return len(loopable)
+    pmap = PositionMap(blocked)
+    occupied.add(pos)
+    in_bounds = True
+    while in_bounds:
+        new_pos = pmap.jump_to_point(pos, bearing)
+        if new_pos is None:
+            in_bounds = False
+            new_pos = oob_ind[bearing]
+        nsteps = abs(pos[shift_idx[bearing]] - new_pos)
+        sft_mod = shift_mods[bearing]
+        tmp_bearing = (bearing + 1)%4
+        for _ in range(nsteps):
+            if bearing in [NORTH, SOUTH]:
+                tmp_pos = (pos[0] + sft_mod, pos[1])
+            else:
+                tmp_pos = (pos[0], pos[1] + sft_mod)
+            if tmp_pos in occupied:
+                pos = tmp_pos
+                continue
+            occupied.add(tmp_pos)
+            if creates_loop(pos, pmap, tmp_pos, tmp_bearing):
+                loopable += 1
+            pos = tmp_pos
+        bearing = tmp_bearing
+    return loopable
+                
 
 def main() -> None:
     """Script main function."""
@@ -234,12 +308,10 @@ def main() -> None:
     outp = count_distinct_positions(room_map)
     print(f"Result: {outp}")
     print("======================")
+    print("Part II")
+    print("-------")
     outp = count_distinct_loop_opportunities(room_map)
-    print(outp)
-    # print("Part II")
-    # print("-------")
-    # outp = ???
-    # print(f"Result: {outp}")
+    print(f"Result: {outp}")
 
 if __name__ == "__main__":
     main()
