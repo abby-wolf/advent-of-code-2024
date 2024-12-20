@@ -61,13 +61,12 @@ def parse_data(data: List[str]) -> List[LinkedList]:
                 rval[freq] = LinkedList(pos)
                 continue
             rval[freq].append(pos)
-    print(rval.keys())
     return [*rval.values()]
 
-def get_valid_antinodes(pos: Node, xmax: int, ymax: int) -> Set[DataPoint]:
+def get_colinear_antinodes(pos: Node, xmax: int, ymax: int) -> Set[DataPoint]:
     if not pos.has_next():
         return set()
-    valid = get_valid_antinodes(pos.next, xmax, ymax)
+    valid = get_colinear_antinodes(pos.next, xmax, ymax)
     
     slope_xmax = xmax/2
     slope_ymax = ymax/2
@@ -84,24 +83,61 @@ def get_valid_antinodes(pos: Node, xmax: int, ymax: int) -> Set[DataPoint]:
         if 0 <= tmp.x < xmax and 0 <= tmp.y < ymax:
             valid.add(tmp)
         tmp = DataPoint.subtract(comp.value, slope)
-        if 0 <= tmp.x <= xmax and 0 <= tmp.y < ymax:
+        if 0 <= tmp.x < xmax and 0 <= tmp.y < ymax:
             valid.add(tmp)
     return valid
 
+def get_all_antinodes(pos: Node, xmax: int, ymax: int) -> Set[DataPoint]:
+    valid = {pos.value}
+    if not pos.has_next():
+        return valid
+    valid.update(get_all_antinodes(pos.next, xmax, ymax))
 
-def count_unique_antinodes(data: List[str]) -> int:
+    slope_xmax = xmax/2
+    slope_ymax = ymax/2
+    comp = pos
+    while comp.has_next():
+        comp = comp.next
+        slope = DataPoint.subtract(pos.value, comp.value)
+        if abs(slope.x) >= slope_xmax:
+            continue
+        if abs(slope.y) >= slope_ymax:
+            continue
+
+        tmp = DataPoint.add(pos.value, slope)
+        tmp_slope = slope
+        while 0 <= tmp.x < xmax and 0 <= tmp.y < ymax:
+            valid.add(tmp)
+            tmp = DataPoint.add(pos.value, tmp_slope)
+            tmp_slope = DataPoint.add(tmp_slope, slope)
+        tmp = DataPoint.subtract(comp.value, slope)
+        tmp_slope = slope
+        while 0 <= tmp.x < xmax and 0 <= tmp.y < ymax:
+            valid.add(tmp)
+            tmp = DataPoint.subtract(pos.value, tmp_slope)
+            tmp_slope = DataPoint.add(tmp_slope, slope)
+    return valid
+
+def count_unique_colinear_antinodes(data: List[str]) -> int:
     total = set()
     xmax = len(data[0])
     ymax = len(data)
-    print(xmax)
-    print(ymax)
     freq_sets = parse_data(data)
     for freq in freq_sets:
         if freq.start.next is None:
             continue
-        total.update(get_valid_antinodes(freq.start, xmax, ymax))
-    for val in total:
-        print(val)
+        total.update(get_colinear_antinodes(freq.start, xmax, ymax))
+    return len(total)
+
+def count_unique_total_antinodes(data: List[str]) -> int:
+    total = set()
+    xmax = len(data[0])
+    ymax = len(data)
+    freq_sets = parse_data(data)
+    for freq in freq_sets:
+        if freq.start.next is None:
+            continue
+        total.update(get_all_antinodes(freq.start, xmax, ymax))
     return len(total)
 
 def main() -> None:
@@ -109,13 +145,13 @@ def main() -> None:
     data = read_input(INPUT_PATH)
     print("Part I")
     print("-------")
-    outp = count_unique_antinodes(data)
+    outp = count_unique_colinear_antinodes(data)
     print(f"Result: {outp}")
     print("======================")
-    # print("Part II")
-    # print("-------")
-    # outp = count_distinct_loop_opportunities(room_map)
-    # print(f"Result: {outp}")
+    print("Part II")
+    print("-------")
+    outp = count_unique_total_antinodes(data)
+    print(f"Result: {outp}")
     
 if __name__ == "__main__":
     main()
